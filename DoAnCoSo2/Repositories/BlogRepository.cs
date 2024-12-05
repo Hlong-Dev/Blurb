@@ -335,26 +335,43 @@ namespace DoAnCoSo2.Repositories
             return comments;
         }
 
-        public async Task AddCommentToBlogAsync(string userId, string slug, Comment comment)
+        public async Task AddCommentToBlogAsync(CommentModel model)
         {
             try
             {
-                await _client.Cypher
-                    .Create("(comment:Comment $newComment)")
-                    .WithParam("newComment", comment)
-                    .ExecuteWithoutResultsAsync();
+                // Create the Comment node with AvatarUrl and FirstName and retrieve its Neo4j-generated ID
+                var result = await _client.Cypher
+                    .Create("(comment:Comment {Content: $content, BlogSlug: $blogSlug, UserId: $userId, CreatedAt: $createdAt, AvatarUrl: $avatarUrl, FirstName: $firstName})")
+                    .WithParams(new
+                    {
+                        content = model.Content,
+                        blogSlug = model.BlogSlug,
+                        userId = model.UserId,
+                        createdAt = model.CreatedAt,
+                        avatarUrl = model.AvatarUrl,    // Add AvatarUrl
+                        firstName = model.FirstName     // Add FirstName
+                    })
+                    .Return(comment => comment.Id())
+                    .ResultsAsync;
 
+                var commentId = result.Single(); // This is the Neo4j-generated ID for the comment
+
+                // Establish COMMENTED relationship between User and Comment
                 await _client.Cypher
-                    .Match("(user:User)", "(comment:Comment)")
-                    .Where((User user) => user.Id == userId)
-                    .AndWhere((Comment cmt) => cmt.Id == comment.Id)
+                    .Match("(user:User)")
+                    .Where((User user) => user.Id == model.UserId)
+                    .Match("(comment:Comment)")
+                    .Where("ID(comment) = $commentId")
+                    .WithParam("commentId", commentId)
                     .Create("(user)-[:COMMENTED]->(comment)")
                     .ExecuteWithoutResultsAsync();
 
+                // Establish ON relationship between Comment and Blog
                 await _client.Cypher
                     .Match("(comment:Comment)", "(blog:Blog)")
-                    .Where((Comment cmt) => cmt.Id == comment.Id)
-                    .AndWhere((Blog blog) => blog.Slug == slug)
+                    .Where("ID(comment) = $commentId")
+                    .AndWhere((Blog blog) => blog.Slug == model.BlogSlug)
+                    .WithParam("commentId", commentId)
                     .Create("(comment)-[:ON]->(blog)")
                     .ExecuteWithoutResultsAsync();
             }
@@ -364,6 +381,8 @@ namespace DoAnCoSo2.Repositories
                 throw;
             }
         }
+
+
 
         //public async Task DeleteCommentAsync(int commentId)
         //{

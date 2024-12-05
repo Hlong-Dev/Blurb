@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,6 +16,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using DoAnCoSo2.Services;
+using Microsoft.AspNetCore.SignalR;
+using DoAnCoSo2.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,20 +43,31 @@ builder.Services.AddSwaggerGen(option =>
             {
                 Reference = new OpenApiReference
                 {
-                    Type=ReferenceType.SecurityScheme,
-                    Id="Bearer"
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 }
             },
-            new string[]{}
+            new string[] { }
         }
     });
 });
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:5236", "http://localhost:3000") // Thêm các domain frontend vào đây
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // Quan trọng khi sử dụng SignalR
+    });
+});
 
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<BookStoreContext>().AddDefaultTokenProviders();
-builder.Services.AddDbContext<BookStoreContext>(options => {
+
+builder.Services.AddDbContext<BookStoreContext>(options =>
+{
     options.UseSqlServer(builder.Configuration.GetConnectionString("BookStore"));
 });
 
@@ -68,24 +81,28 @@ builder.Services.AddAutoMapper(typeof(Program));
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IBlogRepository, BlogRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<ImgurUploader>(); // Assuming ImageUploader is the correct class name
+builder.Services.AddScoped<ImgurUploader>();
+
 var client = new BoltGraphClient(
     new Uri(builder.Configuration["Neo4j:Uri"]),
     builder.Configuration["Neo4j:Username"],
     builder.Configuration["Neo4j:Password"]
 );
 
-client.ConnectAsync().Wait();
+await client.ConnectAsync();
 builder.Services.AddSingleton<WebSocketConnectionManager>();
 builder.Services.AddSingleton<IGraphClient>(client);
-builder.Services.AddAuthentication(options => {
+
+builder.Services.AddAuthentication(options =>
+{
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options => {
+}).AddJwtBearer(options =>
+{
     options.SaveToken = true;
     options.RequireHttpsMetadata = false;
-    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
         ValidateAudience = true,
@@ -94,6 +111,9 @@ builder.Services.AddAuthentication(options => {
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"]))
     };
 });
+
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
 var app = builder.Build();
 
@@ -105,14 +125,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors(); // Nên ??t tr??c UseAuthentication và UseAuthorization
+
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseCors(builder => builder
-.AllowAnyOrigin()
-.AllowAnyMethod()
-.AllowAnyHeader());
 
-// Add WebSocket middleware
 app.UseWebSockets();
 
 // Handle WebSocket requests
@@ -138,6 +156,7 @@ app.Use(async (context, next) =>
     }
 });
 
+app.MapHub<ChatHub>("/chathub");
 app.MapControllers();
 
 app.Run();

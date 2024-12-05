@@ -220,44 +220,26 @@ namespace DoAnCoSo2.Controllers
         {
             return await _blogRepo.GetNotificationsForUserAsync(userId);
         }
-        //[HttpPost("{slug}/comments")]
-        //public async Task<IActionResult> AddComment(string slug, [FromBody] CommentModel model)
-        //{
-        //    try
-        //    {
-        //        var blog = await _blogRepo.GetBlogAsync(slug);
-        //        if (blog == null)
-        //        {
-        //            return NotFound("Blog not found");
-        //        }
-
-        //        var newComment = new Comment
-        //        {
-        //            BlogId = blog.BlogId,
-        //            UserId = model.UserId,
-        //            FirstName = model.FirstName,
-        //            AvatarUrl = model.AvatarUrl,
-        //            Content = model.Content,
-        //            CreatedAt = DateTime.UtcNow
-        //        };
-
-        //        await _blogRepo.AddCommentAsync(newComment);
-
-        //        return Ok("Comment added successfully!");
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, $"Internal server error: {ex.Message}");
-        //    }
-        //}
-        [HttpGet("{blogId}/comments")]
+        [HttpPost("{slug}/comments")]
+        public async Task<IActionResult> AddComment(string slug, [FromBody] CommentModel model)
+        {
+            try
+            {
+                model.BlogSlug = slug;
+                await _blogRepo.AddCommentToBlogAsync(model);
+                return Ok("Comment added successfully!");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+        [HttpGet("{slug}/comments")]
         public async Task<IActionResult> GetComments(string slug)
         {
             try
             {
-                // Retrieve all comments for the specified blog
                 var comments = await _blogRepo.GetCommentsForBlogAsync(slug);
-
                 return Ok(comments);
             }
             catch (Exception ex)

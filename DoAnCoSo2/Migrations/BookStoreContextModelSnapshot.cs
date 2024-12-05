@@ -101,17 +101,18 @@ namespace DoAnCoSo2.Migrations
 
             modelBuilder.Entity("DoAnCoSo2.Data.Blog", b =>
                 {
-                    b.Property<int>("BlogId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BlogId"), 1L, 1);
+                    b.Property<string>("ApplicationUserId")
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("AvatarUrl")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
+                    b.Property<string>("CategorySlug")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Content")
                         .IsRequired()
@@ -141,33 +142,21 @@ namespace DoAnCoSo2.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("UserName")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ViewCount")
                         .HasColumnType("int");
 
-                    b.HasKey("BlogId");
+                    b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("ApplicationUserId");
 
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Blog");
+                    b.ToTable("Blogs");
                 });
 
             modelBuilder.Entity("DoAnCoSo2.Data.Category", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -176,9 +165,7 @@ namespace DoAnCoSo2.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
-
-                    b.ToTable("Category");
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("DoAnCoSo2.Data.Comment", b =>
@@ -190,10 +177,12 @@ namespace DoAnCoSo2.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
 
                     b.Property<string>("AvatarUrl")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("BlogId")
-                        .HasColumnType("int");
+                    b.Property<string>("BlogSlug")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Content")
                         .IsRequired()
@@ -203,6 +192,7 @@ namespace DoAnCoSo2.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("FirstName")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserId")
@@ -211,7 +201,7 @@ namespace DoAnCoSo2.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BlogId");
+                    b.HasIndex("BlogSlug");
 
                     b.ToTable("Comments");
                 });
@@ -239,8 +229,9 @@ namespace DoAnCoSo2.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
 
-                    b.Property<int>("BlogId")
-                        .HasColumnType("int");
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -248,7 +239,7 @@ namespace DoAnCoSo2.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BlogId");
+                    b.HasIndex("Slug");
 
                     b.ToTable("UserSavedBlogs");
                 });
@@ -388,28 +379,16 @@ namespace DoAnCoSo2.Migrations
 
             modelBuilder.Entity("DoAnCoSo2.Data.Blog", b =>
                 {
-                    b.HasOne("DoAnCoSo2.Data.Category", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DoAnCoSo2.Data.ApplicationUser", "User")
+                    b.HasOne("DoAnCoSo2.Data.ApplicationUser", null)
                         .WithMany("Blogs")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-
-                    b.Navigation("User");
+                        .HasForeignKey("ApplicationUserId");
                 });
 
             modelBuilder.Entity("DoAnCoSo2.Data.Comment", b =>
                 {
                     b.HasOne("DoAnCoSo2.Data.Blog", "Blog")
                         .WithMany("Comments")
-                        .HasForeignKey("BlogId")
+                        .HasForeignKey("BlogSlug")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -419,15 +398,15 @@ namespace DoAnCoSo2.Migrations
             modelBuilder.Entity("DoAnCoSo2.Data.UserRelationship", b =>
                 {
                     b.HasOne("DoAnCoSo2.Data.ApplicationUser", "Followee")
-                        .WithMany("Followers")
+                        .WithMany()
                         .HasForeignKey("FolloweeId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("DoAnCoSo2.Data.ApplicationUser", "Follower")
-                        .WithMany("Following")
+                        .WithMany()
                         .HasForeignKey("FollowerId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Followee");
@@ -439,7 +418,7 @@ namespace DoAnCoSo2.Migrations
                 {
                     b.HasOne("DoAnCoSo2.Data.Blog", "Blog")
                         .WithMany()
-                        .HasForeignKey("BlogId")
+                        .HasForeignKey("Slug")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -500,10 +479,6 @@ namespace DoAnCoSo2.Migrations
             modelBuilder.Entity("DoAnCoSo2.Data.ApplicationUser", b =>
                 {
                     b.Navigation("Blogs");
-
-                    b.Navigation("Followers");
-
-                    b.Navigation("Following");
                 });
 
             modelBuilder.Entity("DoAnCoSo2.Data.Blog", b =>
