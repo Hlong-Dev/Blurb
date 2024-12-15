@@ -55,7 +55,7 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5236", "http://localhost:3000") // Thêm các domain frontend vào đây
+        policy.WithOrigins("https://blurb.azurewebsites.net", "http://localhost:5236") // Thêm các domain frontend vào đây
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials(); // Quan trọng khi sử dụng SignalR
