@@ -74,40 +74,51 @@ namespace DoAnCoSo2.Repositories
             await AddUserPostedRelationship(userId, newBlog.Slug);
             await AddCategoryBlogRelationship(categorySlug, newBlog.Slug);
 
-            // Send WebSocket message to followers
+            // Gửi tin nhắn WebSocket đến những người theo dõi
             var followers = await _client.Cypher
                 .Match("(follower:User)-[:FOLLOWS]->(user:User {Id: $userId})")
                 .WithParam("userId", userId)
                 .Return(follower => follower.As<User>())
                 .ResultsAsync;
 
-            var message = $"User {userId} has posted a new blog: {newBlog.Title}";
+            var message = new
+            {
+                Text = $"User {userId} vừa đăng bài viết mới với tiêu đề: {newBlog.Title}",
+                Slug = newBlog.Slug,
+                AvatarUrl = newBlog.AvatarUrl // Include AvatarUrl in the message
+            };
+            var messageJson = JsonConvert.SerializeObject(message);
 
             foreach (var follower in followers)
             {
-                await _webSocketConnectionManager.SendMessageAsync(follower.Id, message);
-                await AddNotificationAsync(follower.Id, message); // Add this line to create notifications
+                await _webSocketConnectionManager.SendMessageAsync(follower.Id, messageJson);
+                await AddNotificationAsync(follower.Id, message.Text, newBlog.Slug, message.AvatarUrl);
             }
 
             return newBlog.Slug;
         }
 
-        public async Task AddNotificationAsync(string userId, string message)
+
+        public async Task AddNotificationAsync(string userId, string message, string slug, string avatarUrl)
         {
             var notification = new Notification
             {
                 Id = Guid.NewGuid().ToString(),
                 Message = message,
-                CreatedAt = DateTime.UtcNow
+                Slug = slug,
+                CreatedAt = DateTime.UtcNow,
+                AvatarUrl = avatarUrl // Set AvatarUrl
             };
 
             await _client.Cypher
-                .Create("(notification:Notification {Id: $id, Message: $message, CreatedAt: $createdAt})")
+                .Create("(notification:Notification {Id: $id, Message: $message, Slug: $slug, CreatedAt: $createdAt, AvatarUrl: $avatarUrl})")
                 .WithParams(new
                 {
                     id = notification.Id,
                     message = notification.Message,
-                    createdAt = notification.CreatedAt
+                    slug = notification.Slug,
+                    createdAt = notification.CreatedAt,
+                    avatarUrl = notification.AvatarUrl // Add AvatarUrl param
                 })
                 .ExecuteWithoutResultsAsync();
 
@@ -130,10 +141,6 @@ namespace DoAnCoSo2.Repositories
 
             return notifications;
         }
-
-
-
-
         private async Task AddCategoryBlogRelationship(string categorySlug, string blogSlug)
         {
             await _client.Cypher
@@ -267,7 +274,7 @@ namespace DoAnCoSo2.Repositories
         {
             var blogs = await _client.Cypher
                 .Match("(blog:Blog)")
-                .Where((Blog blog) => blog.Id == userId && blog.IsPublic == false)
+                .Where((Blog blog) => blog.Id == userId)
                 .Return(blog => blog.As<Blog>())
                 .ResultsAsync;
 
@@ -328,26 +335,43 @@ namespace DoAnCoSo2.Repositories
             return comments;
         }
 
-        public async Task AddCommentToBlogAsync(string userId, string slug, Comment comment)
+        public async Task AddCommentToBlogAsync(CommentModel model)
         {
             try
             {
-                await _client.Cypher
-                    .Create("(comment:Comment $newComment)")
-                    .WithParam("newComment", comment)
-                    .ExecuteWithoutResultsAsync();
+                // Create the Comment node with AvatarUrl and FirstName and retrieve its Neo4j-generated ID
+                var result = await _client.Cypher
+                    .Create("(comment:Comment {Content: $content, BlogSlug: $blogSlug, UserId: $userId, CreatedAt: $createdAt, AvatarUrl: $avatarUrl, FirstName: $firstName})")
+                    .WithParams(new
+                    {
+                        content = model.Content,
+                        blogSlug = model.BlogSlug,
+                        userId = model.UserId,
+                        createdAt = model.CreatedAt,
+                        avatarUrl = model.AvatarUrl,    // Add AvatarUrl
+                        firstName = model.FirstName     // Add FirstName
+                    })
+                    .Return(comment => comment.Id())
+                    .ResultsAsync;
 
+                var commentId = result.Single(); // This is the Neo4j-generated ID for the comment
+
+                // Establish COMMENTED relationship between User and Comment
                 await _client.Cypher
-                    .Match("(user:User)", "(comment:Comment)")
-                    .Where((User user) => user.Id == userId)
-                    .AndWhere((Comment cmt) => cmt.Id == comment.Id)
+                    .Match("(user:User)")
+                    .Where((User user) => user.Id == model.UserId)
+                    .Match("(comment:Comment)")
+                    .Where("ID(comment) = $commentId")
+                    .WithParam("commentId", commentId)
                     .Create("(user)-[:COMMENTED]->(comment)")
                     .ExecuteWithoutResultsAsync();
 
+                // Establish ON relationship between Comment and Blog
                 await _client.Cypher
                     .Match("(comment:Comment)", "(blog:Blog)")
-                    .Where((Comment cmt) => cmt.Id == comment.Id)
-                    .AndWhere((Blog blog) => blog.Slug == slug)
+                    .Where("ID(comment) = $commentId")
+                    .AndWhere((Blog blog) => blog.Slug == model.BlogSlug)
+                    .WithParam("commentId", commentId)
                     .Create("(comment)-[:ON]->(blog)")
                     .ExecuteWithoutResultsAsync();
             }
@@ -357,6 +381,8 @@ namespace DoAnCoSo2.Repositories
                 throw;
             }
         }
+
+
 
         //public async Task DeleteCommentAsync(int commentId)
         //{
@@ -403,7 +429,7 @@ namespace DoAnCoSo2.Repositories
         {
             var blogs = await _client.Cypher
                 .Match("(blog:Blog)")
-                .Where("blog.Title CONTAINS $keyword OR blog.Content CONTAINS $keyword OR blog.Description CONTAINS $keyword")
+                .Where("blog.Title CONTAINS $keyword")
                 .WithParam("keyword", keyword)
                 .Return(blog => blog.As<Blog>())
                 .ResultsAsync;

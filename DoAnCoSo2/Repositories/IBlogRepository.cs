@@ -23,13 +23,13 @@ namespace DoAnCoSo2.Repositories
         Task<List<BlogModel>> GetSavedBlogsAsync(string userId);
         Task<bool> IsBlogSavedAsync(string userId, string slug);
         Task<IEnumerable<Comment>> GetCommentsForBlogAsync(string slug);
-        Task AddCommentToBlogAsync(string userId, string slug, Comment comment);
+        Task AddCommentToBlogAsync(CommentModel model);
         Task DeleteCommentAsync(int commentId);
         Task<IEnumerable<Blog>> GetPopularBlogsAsync(int count);
         Task UpdateViewCountAsync(string slug);
         Task<List<Blog>> GetFollowedUsersBlogsAsync(string userId);
         Task<IEnumerable<Blog>> SearchBlogsAsync(string keyword);
-        Task AddNotificationAsync(string userId, string message);
+        Task AddNotificationAsync(string userId, string message, string slug, string avatarUrl);
         Task<IEnumerable<Notification>> GetNotificationsForUserAsync(string userId);
     }
 }

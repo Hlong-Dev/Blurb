@@ -6,6 +6,8 @@
         public DateTime CreatedAt { get; set; }
         public string UserId { get; set; }
         public string BlogSlug { get; set; }
+        public string FirstName { get; set; }
+        public string AvatarUrl { get; set; }
     }
 
 
